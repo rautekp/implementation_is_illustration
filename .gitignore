@@ -1,0 +1,32 @@
+
+# Build directories
+build/
+build_*/
+out/
+bin/
+
+# Editors
+.vs/
+.vscode/
+*.user
+*.suo
+*.ipch
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Executables and libraries
+*.exe
+*.dll
+*.lib
+*.pdb
+*.obj
+*.a
+*.so
+*.dylib
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
