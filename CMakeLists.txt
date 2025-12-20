@@ -66,7 +66,7 @@ target_link_libraries(iii_core PUBLIC iii)
 target_include_directories(iii_core PUBLIC include)
 
 # Example
-add_executable(poc_example examples/main.cpp)
+add_executable(poc_example examples/basic_usage.cpp)
 target_link_libraries(poc_example PRIVATE iii_core)
 
 # Optional: Include OpenGL PoC if found as sibling or child
