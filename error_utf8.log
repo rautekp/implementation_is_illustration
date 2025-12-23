@@ -1,0 +1,16 @@
+﻿MSBuild version 17.3.1+2badb37d1 for .NET Framework
+  iii_core.vcxproj -> C:\dev\iii\implementation_is_illustration\build\Release\iii_core.lib
+  example_matrix.cpp
+C:\dev\iii\implementation_is_illustration\include\iii/Matrix.hpp(51,1): error C2440: 'initializing': cannot convert from 'const Eigen::CwiseNullaryOp<Eigen::internal::scalar_identity_op<double>,Eigen::Matrix<double,4,4,0,4,4>>' to 'iii::Matrix4<double,true>' [C:\dev\iii\implementation_is_illustration\build\example_matrix.vcxproj]
+C:\dev\iii\implementation_is_illustration\include\iii/Matrix.hpp(51,15): message : No user-defined-conversion operator available that can perform this conversion, or the operator cannot be called [C:\dev\iii\implementation_is_illustration\build\example_matrix.vcxproj]
+C:\dev\iii\implementation_is_illustration\include\iii/Matrix.hpp(50): message : while compiling class template member function 'iii::Matrix4<double,true> iii::Matrix4<double,true>::Translate(T,T,T)' [C:\dev\iii\implementation_is_illustration\build\example_matrix.vcxproj]
+          with
+          [
+              T=double
+          ]
+C:\dev\iii\implementation_is_illustration\examples\example_matrix.cpp(17): message : see reference to function template instantiation 'iii::Matrix4<double,true> iii::Matrix4<double,true>::Translate(T,T,T)' being compiled [C:\dev\iii\implementation_is_illustration\build\example_matrix.vcxproj]
+          with
+          [
+              T=double
+          ]
+C:\dev\iii\implementation_is_illustration\examples\example_matrix.cpp(17): message : see reference to class template instantiation 'iii::Matrix4<double,true>' being compiled [C:\dev\iii\implementation_is_illustration\build\example_matrix.vcxproj]

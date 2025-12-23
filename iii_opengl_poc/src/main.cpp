@@ -1,91 +1,153 @@
 #include "GLRenderer.hpp"
+#include "VisualizerApp.hpp"
 #include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl2.h>
 #include <iostream>
+#include <vector>
 
-#include <cmath>
-#include <iii/Math.hpp>
-#include <iii/Vector.hpp>
-
-// Define a type for convenience
-// We explicitly enable visualization here because we are in the PoC
-using Vector3 = iii::Vector3<double, true>;
-
-int main() {
-  std::cout << "Starting OpenGL PoC..." << std::endl;
-
-  GLRenderer renderer;
-#ifdef III_ENABLE_VISUALS
-  iii::Recorder::get().addListener(&renderer);
-#endif
-
+int main(int, char **) {
   if (!glfwInit())
-    return -1;
-
+    return 1;
+  // Window init
   GLFWwindow *window =
-      glfwCreateWindow(640, 480, "Implementation is Illustration", NULL, NULL);
-  if (!window) {
-    glfwTerminate();
-    return -1;
-  }
-
+      glfwCreateWindow(1280, 720, "III Visualizer", NULL, NULL);
+  if (!window)
+    return 1;
   glfwMakeContextCurrent(window);
+  glfwSwapInterval(1); // Enable vsync
 
-  // Setup vectors
-  // Vector Field Interpolation Example
+  // Setup ImGui
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO &io = ImGui::GetIO();
+  (void)io;
+  io.ConfigFlags |=
+      ImGuiConfigFlags_NavEnableKeyboard;           // Enable Keyboard Controls
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
 
-  // 1. Point A and Vector A
-  Vector3 pA(-0.5, -0.5, 0.0);
-  pA.set_label("P_A");
-  pA.set_color(1.0, 0.0, 0.0);
+  ImGui::StyleColorsDark();
+  ImGui_ImplGlfw_InitForOpenGL(window, true);
+  ImGui_ImplOpenGL2_Init();
 
-  Vector3 vA(0.0, 0.5, 0.0); // Up vector
-  vA.set_semantic("Vector");
-  vA.set_origin(pA); // Attach to P_A
-  vA.set_color(1.0, 0.5, 0.5);
+  // App Instance
+  VisualizerApp app;
+  GLRenderer renderer;
+  app.m_renderer = &renderer;
 
-  // 2. Point B and Vector B
-  Vector3 pB(0.5, 0.5, 0.0);
-  pB.set_label("P_B");
-  pB.set_color(0.0, 0.0, 1.0);
+  // Generate Initial Demo
+  app.generateDemo("Matrix Demo"); // Starts with Matrix Demo by default
+  std::cout << "Trace initialized.\n";
 
-  Vector3 vB(0.5, 0.0, 0.0); // Right vector
-  vB.set_semantic("Vector");
-  vB.set_origin(pB); // Attach to P_B
-  vB.set_color(0.5, 0.5, 1.0);
+  // Init Playback
+  app.m_playing = false;
 
-  std::cout << "Starting loop..." << std::endl;
+  // Time tracking
+  double lastTime = glfwGetTime();
 
   while (!glfwWindowShouldClose(window)) {
-    // Clear screen
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    // 3. Interpolate
-    double time = glfwGetTime();
-    double t = (std::sin(time) + 1.0) / 2.0;
-
-    // Interpolate Position
-    Vector3 pC = iii::lerp(pA, pB, t);
-    pC.set_label("P_C");
-    pC.set_color(0.0, 1.0, 0.0);
-
-    // Interpolate Vector
-    Vector3 vC = iii::lerp(vA, vB, t);
-    vC.set_semantic("Vector");
-    vC.set_origin(pC); // Attach to moving point P_C
-    vC.set_color(1.0, 1.0, 0.0);
-
-    // vC is always visible
-    vC.set_visible(true);
-
-    renderer.render();
-    glfwSwapBuffers(window);
     glfwPollEvents();
+
+    double currentTime = glfwGetTime();
+    float dt = (float)(currentTime - lastTime);
+    lastTime = currentTime;
+
+    // Start ImGui Frame
+    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    // Update App Logic (Camera interpolation etc) - Moved here to have fresh
+    // Input
+    app.update(dt);
+
+    // Viewport info for Projection
+    int display_w, display_h;
+    glfwGetFramebufferSize(window, &display_w, &display_h);
+    app.m_viewport[0] = 0;
+    app.m_viewport[1] = 0;
+    app.m_viewport[2] = display_w;
+    app.m_viewport[3] = display_h;
+
+    // Camera Update
+    float aspect = (float)display_w / (float)display_h;
+    app.updateCameraProj(aspect);
+
+    // Logic (Playback step)
+    if (app.m_playing && app.m_currentStep < app.m_trace.size()) {
+      // Speed control
+      app.m_timeAccumulator += dt * app.m_playbackSpeed;
+      const float stepInterval = 0.016f; // ~60 fps
+      while (app.m_timeAccumulator > stepInterval) {
+        app.m_timeAccumulator -= stepInterval;
+        if (app.m_currentStep < app.m_trace.size())
+          app.m_currentStep++;
+      }
+    }
+
+    // Process range events for Camera and Messages
+    app.m_currentMessage = "";
+    app.m_currentCode = "";
+    // We only need the *latest* camera event in range [0, currentStep]
+    for (int i = app.m_currentStep - 1; i >= 0; --i) {
+      bool foundMsg = !app.m_currentMessage.empty();
+      // Check message
+      if (!foundMsg &&
+          std::holds_alternative<iii::EventMessage>(app.m_trace[i])) {
+        const auto &e = std::get<iii::EventMessage>(app.m_trace[i]);
+        app.m_currentMessage = e.message;
+        app.m_currentCode = e.code;
+        foundMsg = true;
+      }
+      // Check camera
+      if (std::holds_alternative<iii::EventSetCamera>(app.m_trace[i])) {
+        const auto &cam = std::get<iii::EventSetCamera>(app.m_trace[i]);
+        // Update target trace camera
+        app.m_traceCamera.dist = cam.dist;
+        app.m_traceCamera.pitch = cam.pitch;
+        app.m_traceCamera.yaw = cam.yaw;
+        app.m_traceCamera.fov = cam.fov;
+        break;
+      }
+    }
+
+    // Render UI (Controls + Labels)
+    app.renderUI();
+
+    // Rendering Scene
+    ImGui::Render();
+
+    glViewport(0, 0, display_w, display_h);
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear Depth too
+
+    // Apply Camera
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(app.m_projMat);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(app.m_viewMat);
+
+    // Feed Renderer
+    renderer = GLRenderer(); // Reset state
+    for (int i = 0; i < app.m_currentStep; ++i) {
+      renderer.onEvent(app.m_trace[i]);
+    }
+
+    // Draw Scene
+    renderer.render();
+
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+
+    glfwSwapBuffers(window);
   }
 
-#ifdef III_ENABLE_VISUALS
-  iii::Recorder::get().dump("trace.json");
-#endif
+  ImGui_ImplOpenGL2_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
 
+  glfwDestroyWindow(window);
   glfwTerminate();
+
   return 0;
 }

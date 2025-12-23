@@ -40,8 +40,8 @@ public:
   // 2. Default Constructor
   Vector3() : Base() { register_visual(); }
 
-  // 3. Constructor from Eigen base
-  Vector3(const Base &other) : Base(other) { register_visual(); }
+  // 3. Constructor from Eigen- [ ] Implement Vector Functions <!-- id: 12
+  // -->&other) : Base(other) { register_visual(); }
 
   // 4. Templated Constructor from Eigen expressions
   template <typename Derived>
@@ -155,10 +155,51 @@ public:
     }
   }
 
+  // Dot product
+  template <bool OtherVis> double dot(const Vector3<T, OtherVis> &other) const {
+    double result = Base::dot(other);
+    if constexpr (Visualize || OtherVis) {
+      size_t id1 = 0, id2 = 0;
+      if constexpr (Visualize)
+        id1 = m_data.id;
+      if constexpr (OtherVis)
+        id2 = other.m_data.id;
+
+#ifdef III_ENABLE_VISUALS
+      Recorder::get().record(EventDotOp{id1, id2, result});
+#endif
+    }
+    return result;
+  }
+
+  // Cross product
+  template <bool OtherVis>
+  Vector3<T, Visualize || OtherVis>
+  cross(const Vector3<T, OtherVis> &other) const {
+    Vector3<T, Visualize || OtherVis> result = Base::cross(other);
+    if constexpr (Visualize || OtherVis) {
+      size_t id1 = 0, id2 = 0;
+      if constexpr (Visualize)
+        id1 = m_data.id;
+      if constexpr (OtherVis)
+        id2 = other.m_data.id;
+
+#ifdef III_ENABLE_VISUALS
+      Recorder::get().record(
+          EventBinaryOp{result.m_data.id, id1, id2, "cross"});
+#endif
+    }
+    return result;
+  }
+
   // API Methods
   void set_label(std::string l) {
-    if constexpr (Visualize)
+    if constexpr (Visualize) {
       m_data.label = l;
+      if (m_data.id != 0) {
+        Recorder::get().record(EventSetLabel{m_data.id, m_data.label});
+      }
+    }
   }
   void set_color(float r, float g, float b) {
     if constexpr (Visualize) {

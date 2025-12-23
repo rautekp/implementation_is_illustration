@@ -1,6 +1,7 @@
 #include "iii/Recorder.hpp"
 #include "iii/IEventListener.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <type_traits>
@@ -16,6 +17,11 @@ namespace iii {
 
 void Recorder::addListener(IEventListener *listener) {
   m_listeners.push_back(listener);
+}
+
+void Recorder::removeListener(IEventListener *listener) {
+  auto it = std::remove(m_listeners.begin(), m_listeners.end(), listener);
+  m_listeners.erase(it, m_listeners.end());
 }
 
 void Recorder::record(Event e) {
@@ -77,6 +83,36 @@ void Recorder::dump(const std::string &filename) {
           } else if constexpr (std::is_same_v<T, EventSetVisible>) {
             out << "\"set_visible\", \"id\": " << arg.id
                 << ", \"visible\": " << (arg.visible ? "true" : "false");
+          } else if constexpr (std::is_same_v<T, EventSetColor>) {
+            out << "\"set_color\", \"id\": " << arg.id << ", \"color\": ["
+                << arg.color.r << "," << arg.color.g << "," << arg.color.b
+                << "]";
+          } else if constexpr (std::is_same_v<T, EventDotOp>) {
+            out << "\"dot_op\", \"op1\": " << arg.operand1_id
+                << ", \"op2\": " << arg.operand2_id
+                << ", \"res\": " << arg.result_scalar;
+          } else if constexpr (std::is_same_v<T, EventSetMatrix>) {
+            out << "\"set_matrix\", \"id\": " << arg.id << ", \"m\": [";
+            for (int k = 0; k < 16; ++k)
+              out << arg.m[k] << (k < 15 ? "," : "");
+            out << "]";
+          } else if constexpr (std::is_same_v<T, EventTransform>) {
+            out << "\"transform\", \"res\": " << arg.result_id
+                << ", \"mat\": " << arg.matrix_id
+                << ", \"vec\": " << arg.vector_id;
+          } else if constexpr (std::is_same_v<T, EventMessage>) {
+            out << "\"message\", \"id\": " << arg.id << ", \"msg\": \""
+                << arg.message << "\""
+                << ", \"code\": \"" << arg.code << "\"";
+          } else if constexpr (std::is_same_v<T, EventSetCamera>) {
+            out << "\"set_camera\", ";
+            out << "\"pitch\": " << arg.pitch << ", ";
+            out << "\"yaw\": " << arg.yaw << ", ";
+            out << "\"dist\": " << arg.dist << ", ";
+            out << "\"fov\": " << arg.fov;
+          } else if constexpr (std::is_same_v<T, EventSetLabel>) {
+            out << "\"set_label\", \"id\": " << arg.id << ", \"label\": \""
+                << arg.label << "\"";
           }
           out << " }";
         },

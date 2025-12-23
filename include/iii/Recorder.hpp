@@ -67,10 +67,50 @@ struct EventSetColor {
   Color color;
 };
 
-using Event = std::variant<EventCreate, EventMove, EventBinaryOp, EventScalarOp,
-                           EventFunctionStart, EventFunctionEnd, EventDestroy,
-                           EventSetSemantic, EventSetOrigin, EventSetVisible,
-                           EventSetColor>;
+struct EventDotOp {
+  size_t operand1_id;
+  size_t operand2_id;
+  double result_scalar;
+};
+
+// Matrix Events
+struct EventSetMatrix {
+  size_t id;
+  // Column-major or row-major? Eigen is col-major by default but stores usually
+  // contiguous. 16 floats.
+  double m[16];
+};
+
+struct EventTransform {
+  size_t result_id;
+  size_t matrix_id;
+  size_t vector_id;
+};
+
+struct EventMessage {
+  size_t id;
+  std::string message;
+  std::string code;
+};
+
+struct EventSetLabel {
+  size_t id;
+  std::string label;
+};
+
+// Camera Control
+struct EventSetCamera {
+  size_t id = 0;
+  float pitch = 0.5f, yaw = 0.5f, dist = 5.0f;
+  float fov = 45.0f;
+};
+
+using Event =
+    std::variant<EventCreate, EventMove, EventBinaryOp, EventScalarOp,
+                 EventFunctionStart, EventFunctionEnd, EventDestroy,
+                 EventSetSemantic, EventSetOrigin, EventSetVisible,
+                 EventSetColor, EventDotOp, EventSetMatrix, EventTransform,
+                 EventMessage, EventSetCamera, EventSetLabel>;
 
 struct IEventListener; // Forward declaration
 
@@ -88,6 +128,7 @@ public:
   void dump(const std::string &filename);
 
   void addListener(IEventListener *listener);
+  void removeListener(IEventListener *listener);
 
   size_t nextId() { return m_nextId++; }
 

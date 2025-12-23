@@ -15,26 +15,11 @@ option(III_ENABLE_VISUALS "Enable visualization capabilities" ON)
 
 
 # Fetch Eigen if not present
-include(FetchContent)
-FetchContent_Declare(
-  Eigen3
-  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
-)
-FetchContent_GetProperties(Eigen3)
-if(NOT eigen3_POPULATED)
-  FetchContent_Populate(Eigen3)
-endif()
-
-# Add autodiff
-include(FetchContent)
-FetchContent_Declare(
-  autodiff
-  URL https://github.com/autodiff/autodiff/archive/refs/tags/v0.6.13.zip
-)
-FetchContent_GetProperties(autodiff)
-if(NOT autodiff_POPULATED)
-  FetchContent_Populate(autodiff)
-endif()
+# Manual dependencies (FetchContent bypass)
+set(eigen3_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/eigen")
+set(autodiff_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/autodiff")
+set(eigen3_POPULATED TRUE)
+set(autodiff_POPULATED TRUE)
 
 # Autodiff is header only, just expose the include dir
 # Autodiff is header only, just expose the include dir
@@ -70,14 +55,57 @@ add_executable(poc_example examples/basic_usage.cpp)
 target_link_libraries(poc_example PRIVATE iii_core)
 
 # Optional: Include OpenGL PoC if found as sibling or child
+# Optional: Include OpenGL PoC if found as sibling or child
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iii_opengl_poc")
     message(STATUS "Found iii_opengl_poc, adding to build...")
+    # This brings in the 'glfw' target via FetchContent inside iii_opengl_poc/CMakeLists.txt
     add_subdirectory("iii_opengl_poc" build_opengl_poc)
-elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../iii_opengl_poc")
-     message(STATUS "Found sibling iii_opengl_poc, adding to build...")
-     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../iii_opengl_poc" build_opengl_poc)
+    
+    # ---------------------------------------------------------
+    # Visualizer App (ImGui enabled)
+    # We define it here to borrow sources and dependencies
+    # ---------------------------------------------------------
+    
+    find_package(OpenGL REQUIRED)
+
+    # ImGui
+    set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui")
+    file(GLOB IMGUI_SOURCES
+        "${IMGUI_DIR}/imgui.cpp"
+        "${IMGUI_DIR}/imgui_draw.cpp"
+        "${IMGUI_DIR}/imgui_tables.cpp"
+        "${IMGUI_DIR}/imgui_widgets.cpp"
+        "${IMGUI_DIR}/imgui_demo.cpp"
+        "${IMGUI_DIR}/backends/imgui_impl_glfw.cpp"
+        "${IMGUI_DIR}/backends/imgui_impl_opengl2.cpp"
+    )
+
+    add_executable(iii_visualizer 
+        iii_opengl_poc/src/main.cpp 
+        iii_opengl_poc/src/GLRenderer.cpp
+        iii_opengl_poc/src/VisualizerApp.cpp
+        ${IMGUI_SOURCES}
+    )
+
+    target_include_directories(iii_visualizer PRIVATE 
+        iii_opengl_poc/src 
+        ${IMGUI_DIR} 
+        ${IMGUI_DIR}/backends
+    )
+    # Link against 'glfw' target provided by iii_opengl_poc subdirectory
+    target_link_libraries(iii_visualizer PRIVATE iii_core glfw OpenGL::GL)
+    target_compile_definitions(iii_visualizer PRIVATE III_ENABLE_VISUALS)
+    
 endif()
 
 # Benchmark
 add_executable(iii_benchmark examples/benchmark_mixed.cpp)
 target_link_libraries(iii_benchmark PRIVATE iii_core)
+
+# Dot/Cross Verification
+add_executable(example_dot_cross examples/example_dot_cross.cpp)
+target_link_libraries(example_dot_cross PRIVATE iii_core)
+
+# Matrix Verification
+add_executable(example_matrix examples/example_matrix.cpp)
+target_link_libraries(example_matrix PRIVATE iii_core)

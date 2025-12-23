@@ -1,0 +1,15 @@
+[
+  { "type": "create", "id": 1, "label": "", "color": [0.5,0.5,0.5] },
+  { "type": "set_semantic", "id": 1, "semantic": "Point" },
+  { "type": "move", "id": 1, "pos": [1,1,0] },
+  { "type": "set_color", "id": 1, "color": [1,1,0] },
+  { "type": "create", "id": 2, "label": "Frame", "color": [0.8,0.8,0.8] },
+  { "type": "set_semantic", "id": 2, "semantic": "Frame" },
+  { "type": "set_matrix", "id": 2, "m": [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1] },
+  { "type": "set_matrix", "id": 2, "m": [1,0,0,0,0,1,0,0,0,0,1,0,2,0,0,1] },
+  { "type": "create", "id": 3, "label": "", "color": [0.5,0.5,0.5] },
+  { "type": "set_semantic", "id": 3, "semantic": "Point" },
+  { "type": "move", "id": 3, "pos": [3,1,0] },
+  { "type": "transform", "res": 3, "mat": 2, "vec": 1 },
+  { "type": "set_color", "id": 3, "color": [0,1,0] }
+]

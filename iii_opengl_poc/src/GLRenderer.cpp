@@ -14,7 +14,7 @@ void GLRenderer::onEvent(const iii::Event &e) {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, iii::EventCreate>) {
           m_objects.push_back({arg.id, 0.0f, 0.0f, 0.0f, arg.color.r,
-                               arg.color.g, arg.color.b});
+                               arg.color.g, arg.color.b, arg.label});
         } else if constexpr (std::is_same_v<T, iii::EventMove>) {
           // Find object by ID and update position
           for (auto &obj : m_objects) {
@@ -56,6 +56,22 @@ void GLRenderer::onEvent(const iii::Event &e) {
               obj.r = arg.color.r;
               obj.g = arg.color.g;
               obj.b = arg.color.b;
+              break;
+            }
+          }
+
+        } else if constexpr (std::is_same_v<T, iii::EventSetMatrix>) {
+          for (auto &obj : m_objects) {
+            if (obj.id == arg.id) {
+              for (int i = 0; i < 16; ++i)
+                obj.matrix[i] = arg.m[i];
+              break;
+            }
+          }
+        } else if constexpr (std::is_same_v<T, iii::EventSetLabel>) {
+          for (auto &obj : m_objects) {
+            if (obj.id == arg.id) {
+              obj.label = arg.label;
               break;
             }
           }
@@ -105,5 +121,36 @@ void GLRenderer::render() {
       glVertex3f(startX + obj.x, startY + obj.y, startZ + obj.z);
     }
   }
+
+  glEnd();
+
+  // Draw Frames
+  glBegin(GL_LINES);
+  for (const auto &obj : m_objects) {
+    if (!obj.visible)
+      continue;
+    if (obj.semantic == "Frame") {
+      // Basis X (Red)
+      double tx = obj.matrix[12];
+      double ty = obj.matrix[13];
+      double tz = obj.matrix[14];
+
+      glColor3f(1.0f, 0.0f, 0.0f);
+      glVertex3f(tx, ty, tz);
+      glVertex3f(tx + obj.matrix[0], ty + obj.matrix[1], tz + obj.matrix[2]);
+
+      // Basis Y (Green)
+      glColor3f(0.0f, 1.0f, 0.0f);
+      glVertex3f(tx, ty, tz);
+      glVertex3f(tx + obj.matrix[4], ty + obj.matrix[5], tz + obj.matrix[6]);
+
+      // Basis Z (Blue)
+      glColor3f(0.0f, 0.0f, 1.0f);
+      glVertex3f(tx, ty, tz);
+      glVertex3f(tx + obj.matrix[8], ty + obj.matrix[9], tz + obj.matrix[10]);
+    }
+  }
   glEnd();
 }
+
+void GLRenderer::reset() { m_objects.clear(); }
