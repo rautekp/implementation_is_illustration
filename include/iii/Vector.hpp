@@ -40,8 +40,8 @@ public:
   // 2. Default Constructor
   Vector3() : Base() { register_visual(); }
 
-  // 3. Constructor from Eigen- [ ] Implement Vector Functions <!-- id: 12
-  // -->&other) : Base(other) { register_visual(); }
+  // 3. Constructor from Base
+  Vector3(const Base &other) : Base(other) { register_visual(); }
 
   // 4. Templated Constructor from Eigen expressions
   template <typename Derived>
@@ -51,36 +51,30 @@ public:
 
   // 5. Copy Constructor
   Vector3(const Vector3 &other) : Base(other) {
-    register_visual();
     if constexpr (Visualize) {
       if constexpr (std::is_same_v<decltype(other), const Vector3<T, true> &>) {
         m_data.semantic = other.m_data.semantic;
         m_data.label = other.m_data.label;
         m_data.color = other.m_data.color;
       }
-      if (m_data.id != 0) {
-        Recorder::get().record(EventSetSemantic{m_data.id, m_data.semantic});
-        Recorder::get().record(EventSetColor{m_data.id, m_data.color});
-      }
     }
+    register_visual();
+    // No need to send update events here because register_visual sends Create
+    // event with current m_data (which now has the copied values)
   }
 
   // Support copying from DIFFERENT visualization mode (e.g. Visual from
   // NonVisual)
+  // Support copying from DIFFERENT visualization mode (e.g. Visual from
+  // NonVisual)
   template <bool OtherVis>
   Vector3(const Vector3<T, OtherVis> &other) : Base(other) {
-    register_visual();
-    // If we are visual, we just start fresh (default semantic/color)
-    // If other was visual, maybe we copy properties?
     if constexpr (Visualize && OtherVis) {
       m_data.semantic = other.m_data.semantic;
       m_data.label = other.m_data.label;
       m_data.color = other.m_data.color;
-      if (m_data.id != 0) {
-        Recorder::get().record(EventSetSemantic{m_data.id, m_data.semantic});
-        Recorder::get().record(EventSetColor{m_data.id, m_data.color});
-      }
     }
+    register_visual();
   }
 
   // 6. Move Constructor
@@ -115,14 +109,9 @@ public:
     if (this != &other) {
       Base::operator=(std::move(other));
       if constexpr (Visualize) {
-        if (m_data.id != 0) {
-          Recorder::get().record(EventDestroy{m_data.id});
-        }
-        m_data.id = other.m_data.id;
-        m_data.label = std::move(other.m_data.label);
-        m_data.semantic = std::move(other.m_data.semantic);
-        m_data.color = other.m_data.color;
-        other.m_data.id = 0;
+        // Do NOT overwrite m_data (ID/Label).
+        // Just record that we moved to the new values.
+        record_move();
       }
     }
     return *this;

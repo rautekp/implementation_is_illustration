@@ -4,7 +4,6 @@
 #include <map>
 #include <string>
 
-
 namespace iii {
 
 // Global Registry for Parameters (Only used when Visuals are enabled)
@@ -36,21 +35,14 @@ public:
   // Fast Path: Just a wrapper
   // Visual Path: Checks registry on construction
 
+  // Constructor for std::string (Legacy/General)
   Parameter(const std::string &name, T defaultValue) : m_value(defaultValue) {
-#ifdef III_ENABLE_VISUALS
-    // If the visualizer has set a value for this parameter, use it.
-    // Otherwise, register it (or just implicitly let it be customizable next
-    // frame)
+    registerParameter(name, defaultValue);
+  }
 
-    // Note: For the UI to know this parameter EXISTS, we might need to register
-    // it if it's not in the map yet.
-    auto &reg = ParameterRegistry::getDoubles();
-    if (reg.find(name) == reg.end()) {
-      reg[name] = defaultValue;
-    } else {
-      m_value = (T)reg[name];
-    }
-#endif
+  // Optimized Constructor for string literals
+  Parameter(const char *name, T defaultValue) : m_value(defaultValue) {
+    registerParameter(name, defaultValue);
   }
 
   // Implicit conversion to T
@@ -64,6 +56,31 @@ public:
 
 private:
   T m_value;
+
+  // Helper to keep constructors clean and inline-able
+  // We use a template to accept both string and char* without overhead in the
+  // OFF case? Actually, standard overloading is fine.
+
+  void registerParameter(const std::string &name, T defaultValue) {
+#if defined(III_ENABLE_VISUALS) && !defined(III_NO_VISUALS_OVERRIDE)
+    auto &reg = ParameterRegistry::getDoubles();
+    if (reg.find(name) == reg.end()) {
+      reg[name] = defaultValue;
+    } else {
+      m_value = (T)reg[name];
+    }
+#endif
+  }
+
+  // Overload for char* to avoid string construction if disabled
+  void registerParameter(const char *name, T defaultValue) {
+#if defined(III_ENABLE_VISUALS) && !defined(III_NO_VISUALS_OVERRIDE)
+    // Only construct string if visuals are ENABLED
+    registerParameter(std::string(name), defaultValue);
+#endif
+    // If visuals are disabled, this function is empty and 'name' is ignored.
+    // No std::string created.
+  }
 };
 
 } // namespace iii

@@ -18,6 +18,13 @@ struct EventCreate {
   // Initial position/value could be added here
 };
 
+struct EventCreateRelation {
+  size_t id;
+  size_t start_id;
+  size_t end_id;
+  Color color;
+};
+
 struct EventMove {
   size_t id;
   double x, y, z; // Assuming 3D for now
@@ -106,11 +113,11 @@ struct EventSetCamera {
 };
 
 using Event =
-    std::variant<EventCreate, EventMove, EventBinaryOp, EventScalarOp,
-                 EventFunctionStart, EventFunctionEnd, EventDestroy,
-                 EventSetSemantic, EventSetOrigin, EventSetVisible,
-                 EventSetColor, EventDotOp, EventSetMatrix, EventTransform,
-                 EventMessage, EventSetCamera, EventSetLabel>;
+    std::variant<EventCreate, EventCreateRelation, EventMove, EventBinaryOp,
+                 EventScalarOp, EventFunctionStart, EventFunctionEnd,
+                 EventDestroy, EventSetSemantic, EventSetOrigin,
+                 EventSetVisible, EventSetColor, EventDotOp, EventSetMatrix,
+                 EventTransform, EventMessage, EventSetCamera, EventSetLabel>;
 
 struct IEventListener; // Forward declaration
 

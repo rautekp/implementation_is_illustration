@@ -15,6 +15,16 @@ void GLRenderer::onEvent(const iii::Event &e) {
         if constexpr (std::is_same_v<T, iii::EventCreate>) {
           m_objects.push_back({arg.id, 0.0f, 0.0f, 0.0f, arg.color.r,
                                arg.color.g, arg.color.b, arg.label});
+        } else if constexpr (std::is_same_v<T, iii::EventCreateRelation>) {
+          RenderObject obj;
+          obj.id = arg.id;
+          obj.start_id = arg.start_id;
+          obj.end_id = arg.end_id;
+          obj.r = arg.color.r;
+          obj.g = arg.color.g;
+          obj.b = arg.color.b;
+          obj.semantic = "Line"; // Visual semantic remains "Line"
+          m_objects.push_back(obj);
         } else if constexpr (std::is_same_v<T, iii::EventMove>) {
           // Find object by ID and update position
           for (auto &obj : m_objects) {
@@ -119,6 +129,31 @@ void GLRenderer::render() {
       glColor3f(obj.r, obj.g, obj.b);
       glVertex3f(startX, startY, startZ);
       glVertex3f(startX + obj.x, startY + obj.y, startZ + obj.z);
+    } else if (obj.semantic == "Line") {
+      float x1 = 0, y1 = 0, z1 = 0;
+      float x2 = 0, y2 = 0, z2 = 0;
+      bool found1 = false, found2 = false;
+
+      for (const auto &pt : m_objects) {
+        if (pt.id == obj.start_id) {
+          x1 = pt.x;
+          y1 = pt.y;
+          z1 = pt.z;
+          found1 = true;
+        }
+        if (pt.id == obj.end_id) {
+          x2 = pt.x;
+          y2 = pt.y;
+          z2 = pt.z;
+          found2 = true;
+        }
+      }
+
+      if (found1 && found2) {
+        glColor3f(obj.r, obj.g, obj.b);
+        glVertex3f(x1, y1, z1);
+        glVertex3f(x2, y2, z2);
+      }
     }
   }
 

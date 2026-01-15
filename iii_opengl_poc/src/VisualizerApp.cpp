@@ -5,7 +5,10 @@
 //   { ... }
 // ]
 
+#define _USE_MATH_DEFINES
 #include "VisualizerApp.hpp"
+#include "MathHelpers.hpp"
+#include <cmath>
 #include <fstream>
 #include <imgui.h>
 #include <iostream>
@@ -164,16 +167,19 @@ bool VisualizerApp::project(float x, float y, float z, float &sx, float &sy) {
   return true;
 }
 
-#include "TestCases.hpp"
+#include <DemoCases.hpp> // Was TestCases.hpp
 #include <iii/Parameter.hpp>
 #include <regex>
+
 
 void VisualizerApp::generateDemo(const std::string &name) {
   m_currentDemoName = name;
   if (name == "Matrix Demo") {
-    m_trace = TestCases::generate_matrix_demo();
+    m_trace = DemoCases::generate_matrix_demo();
   } else if (name == "Solar System") {
-    m_trace = TestCases::generate_solar_system();
+    m_trace = DemoCases::generate_solar_system();
+  } else if (name == "Inverse Kinematics") {
+    m_trace = DemoCases::generate_ik_demo();
   }
   // Reset state
   m_currentStep = 0;
@@ -227,6 +233,9 @@ void VisualizerApp::renderUI() {
       }
       if (ImGui::MenuItem("Solar System")) {
         generateDemo("Solar System");
+      }
+      if (ImGui::MenuItem("Inverse Kinematics")) {
+        generateDemo("Inverse Kinematics");
       }
       ImGui::EndMenu();
     }

@@ -93,7 +93,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iii_opengl_poc")
         ${IMGUI_DIR}/backends
     )
     # Link against 'glfw' target provided by iii_opengl_poc subdirectory
-    target_link_libraries(iii_visualizer PRIVATE iii_core glfw OpenGL::GL)
+    target_link_libraries(iii_visualizer PRIVATE iii_core iii_demos glfw OpenGL::GL)
     target_compile_definitions(iii_visualizer PRIVATE III_ENABLE_VISUALS)
     
 endif()
@@ -102,10 +102,19 @@ endif()
 add_executable(iii_benchmark examples/benchmark_mixed.cpp)
 target_link_libraries(iii_benchmark PRIVATE iii_core)
 
+# Demos Library (Shared Examples)
+add_library(iii_demos INTERFACE)
+target_include_directories(iii_demos INTERFACE examples/shared)
+target_link_libraries(iii_demos INTERFACE iii_core)
+
 # Dot/Cross Verification
 add_executable(example_dot_cross examples/example_dot_cross.cpp)
 target_link_libraries(example_dot_cross PRIVATE iii_core)
 
 # Matrix Verification
 add_executable(example_matrix examples/example_matrix.cpp)
-target_link_libraries(example_matrix PRIVATE iii_core)
+target_link_libraries(example_matrix PRIVATE iii_core iii_demos)
+
+# Parameter Benchmark
+add_executable(benchmark_parameter examples/benchmark_parameter.cpp)
+target_link_libraries(benchmark_parameter PRIVATE iii_core)

@@ -11,6 +11,8 @@ struct RenderObject {
   std::string label = "";
   std::string semantic = "Point";
   size_t origin_id = 0;
+  size_t start_id = 0; // For Lines
+  size_t end_id = 0;   // For Lines
   bool visible = true;
   double matrix[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
 };
