@@ -85,7 +85,7 @@ void VisualizerApp::update(float dt) {
 
   // --- Trace Camera Logic ---
   // If playing, we want to gently transition back to trace camera
-  if (m_playing) {
+  if (m_playing && m_autoCameraTracking) {
     // Increase alpha to blend back
     m_transitionAlpha += dt * 2.0f; // 0.5s transition
     if (m_transitionAlpha > 1.0f)
@@ -170,42 +170,155 @@ bool VisualizerApp::project(float x, float y, float z, float &sx, float &sy) {
 #include <DemoCases.hpp> // Was TestCases.hpp
 #include <iii/Parameter.hpp>
 #include <regex>
+#include <cctype>
 
+std::string VisualizerApp::getStyleFilename(const std::string &demoName) const {
+  std::string safe = demoName;
+  for (char& c : safe) {
+    if (c == ' ' || c == '-') c = '_';
+    else c = (char)std::tolower(c);
+  }
+  return safe + "_styles.txt";
+}
+
+void VisualizerApp::saveClassStyles(const std::string &demoName) {
+  if (demoName.empty()) return;
+  std::ofstream out(getStyleFilename(demoName));
+  for (const auto& [cls, style] : m_classStyles) {
+    out << "[" << cls << "]\n";
+    out << "shape=" << (int)style.shape << "\n";
+    out << "radius=" << style.radius << "\n";
+    out << "tessellation=" << style.tessellation << "\n";
+    out << "wireframe=" << style.wireframe << "\n";
+    out << "overrideColor=" << style.overrideColor << "\n";
+    out << "colorR=" << style.colorR << "\n";
+    out << "colorG=" << style.colorG << "\n";
+    out << "colorB=" << style.colorB << "\n";
+    out << "cylinderRadius=" << style.cylinderRadius << "\n";
+    out << "endcaps=" << style.endcaps << "\n";
+    out << "coneRadius=" << style.coneRadius << "\n";
+    out << "coneLength=" << style.coneLength << "\n";
+  }
+}
+
+void VisualizerApp::loadClassStyles(const std::string &demoName) {
+  if (demoName.empty()) return;
+  m_classStyles.clear();
+  std::ifstream in(getStyleFilename(demoName));
+  if (!in.is_open()) return;
+  std::string line, currentClass;
+  while (std::getline(in, line)) {
+    if (line.empty()) continue;
+    if (line.front() == '[' && line.back() == ']') {
+      currentClass = line.substr(1, line.size() - 2);
+      m_classStyles[currentClass] = ClassStyle{};
+      continue;
+    }
+    auto eqPos = line.find('=');
+    if (eqPos != std::string::npos && !currentClass.empty()) {
+      std::string key = line.substr(0, eqPos);
+      std::string val = line.substr(eqPos + 1);
+      auto& style = m_classStyles[currentClass];
+      try {
+        if (key == "shape") style.shape = (ClassStyle::Shape)std::stoi(val);
+        else if (key == "radius") style.radius = std::stof(val);
+        else if (key == "tessellation") style.tessellation = std::stoi(val);
+        else if (key == "wireframe") style.wireframe = std::stoi(val) != 0;
+        else if (key == "overrideColor") style.overrideColor = std::stoi(val) != 0;
+        else if (key == "colorR") style.colorR = std::stof(val);
+        else if (key == "colorG") style.colorG = std::stof(val);
+        else if (key == "colorB") style.colorB = std::stof(val);
+        else if (key == "cylinderRadius") style.cylinderRadius = std::stof(val);
+        else if (key == "endcaps") style.endcaps = std::stoi(val) != 0;
+        else if (key == "coneRadius") style.coneRadius = std::stof(val);
+        else if (key == "coneLength") style.coneLength = std::stof(val);
+      } catch (...) {} // Ignore parsing errors on individual lines
+    }
+  }
+}
+
+
+
+
+void VisualizerApp::regenerateTraces() {
+  m_maxStep = 0;
+  auto &reg = iii::ParameterRegistry::getDoubles();
+  
+  for (int i = 0; i < m_experiments.size(); ++i) {
+    auto &exp = m_experiments[i];
+    
+    // Load parameters
+    reg = exp.parameters;
+    
+    // Run demo
+    std::vector<iii::Event> local_trace;
+    if (m_currentDemoName == "Matrix Demo") {
+      local_trace = DemoCases::generate_matrix_demo();
+    } else if (m_currentDemoName == "Solar System") {
+      local_trace = DemoCases::generate_solar_system();
+    } else if (m_currentDemoName == "Inverse Kinematics") {
+      local_trace = DemoCases::generate_ik_demo();
+    } else if (m_currentDemoName == "Ray-Sphere Intersection") {
+      local_trace = DemoCases::generate_raysphere_demo();
+    } else if (m_currentDemoName == "Curve Frames") {
+      local_trace = DemoCases::generate_curve_frame_demo();
+    } else if (m_currentDemoName == "RK4 Integration") {
+      local_trace = DemoCases::generate_rk4_demo();
+    }
+    
+    // Save updated parameters back (default params might have been registered)
+    exp.parameters = reg;
+    
+    // Suffix layers if there are multiple experiments
+    if (m_experiments.size() > 1) {
+      std::string suffix = " (Exp " + std::to_string(i + 1) + ")";
+      for (auto &e : local_trace) {
+        if (std::holds_alternative<iii::EventSetLayer>(e)) {
+          std::get<iii::EventSetLayer>(e).layer += suffix;
+        }
+      }
+    }
+    
+    exp.trace = std::move(local_trace);
+    m_maxStep = std::max(m_maxStep, (int)exp.trace.size());
+  }
+}
 
 void VisualizerApp::generateDemo(const std::string &name) {
+  bool demoChanged = (name != m_currentDemoName);
   m_currentDemoName = name;
-  if (name == "Matrix Demo") {
-    m_trace = DemoCases::generate_matrix_demo();
-  } else if (name == "Solar System") {
-    m_trace = DemoCases::generate_solar_system();
-  } else if (name == "Inverse Kinematics") {
-    m_trace = DemoCases::generate_ik_demo();
-  } else if (name == "Ray-Sphere Intersection") {
-    m_trace = DemoCases::generate_raysphere_demo();
-  } else if (name == "Curve Frames") {
-    m_trace = DemoCases::generate_curve_frame_demo();
-  } else if (name == "RK4 Integration") {
-    m_trace = DemoCases::generate_rk4_demo();
+  
+  if (demoChanged || m_experiments.empty()) {
+     m_experiments.clear();
+     ExperimentTab exp;
+     exp.name = "Exp 1";
+     m_experiments.push_back(exp);
+     m_activeTabIdx = 0;
   }
+  
+  regenerateTraces();
+  
   // Reset state
   m_currentStep = 0;
   m_timeAccumulator = 0.0f;
   m_playing = false;
   m_renderer->resetObjects(); // Clear old objects
+  
+  loadClassStyles(name);
 
-  // Set initial camera from trace if available?
-  // We scan for first camera event
-  for (const auto &e : m_trace) {
-    if (std::holds_alternative<iii::EventSetCamera>(e)) {
-      const auto &cam = std::get<iii::EventSetCamera>(e);
-      m_traceCamera.dist = cam.dist;
-      m_traceCamera.pitch = cam.pitch;
-      m_traceCamera.yaw = cam.yaw;
-      m_traceCamera.fov = cam.fov;
-      break;
+  // Set initial camera from trace if available
+  if (!m_experiments.empty() && !m_experiments[0].trace.empty()) {
+    for (const auto &e : m_experiments[0].trace) {
+      if (std::holds_alternative<iii::EventSetCamera>(e)) {
+        const auto &cam = std::get<iii::EventSetCamera>(e);
+        m_traceCamera.dist = cam.dist;
+        m_traceCamera.pitch = cam.pitch;
+        m_traceCamera.yaw = cam.yaw;
+        m_traceCamera.fov = cam.fov;
+        break;
+      }
     }
   }
-  // Sync user camera
   m_userCamera = m_traceCamera;
 }
 
@@ -216,13 +329,13 @@ void VisualizerApp::parseFile(const std::string &filename) {
     return;
   }
 
-  m_trace.clear();
+  m_experiments.clear();
   std::string line;
   while (std::getline(file, line)) {
     // TODO: Implement parsing.
   }
 
-  std::cout << "Loaded " << m_trace.size() << " events (Mock)." << std::endl;
+  std::cout << "Loaded events (Mock)." << std::endl;
 }
 
 void VisualizerApp::renderUI() {
@@ -275,28 +388,37 @@ void VisualizerApp::renderUI() {
   }
   ImGui::SameLine();
   if (ImGui::Button(">##next")) {
-    if (m_currentStep < (int)m_trace.size()) m_currentStep++;
+    if (m_currentStep < m_maxStep) m_currentStep++;
     m_playing = false;
   }
   ImGui::SameLine();
   if (ImGui::Button(">|##end")) {
-    m_currentStep = (int)m_trace.size();
+    m_currentStep = m_maxStep;
     m_playing = false;
   }
 
   // Timeline slider
-  ImGui::SliderInt("Step", &m_currentStep, 0, (int)m_trace.size(), "Step %d");
+  ImGui::SliderInt("Step", &m_currentStep, 0, m_maxStep, "Step %d");
 
   // Playback speed
   ImGui::SliderFloat("Speed", &m_playbackSpeed, 0.1f, 10.0f, "%.1fx");
 
   // Step info
-  ImGui::Text("Events: %d / %d", m_currentStep, (int)m_trace.size());
+  ImGui::Text("Events: %d / %d", m_currentStep, m_maxStep);
   ImGui::Text("Message: %s", m_currentMessage.c_str());
   ImGui::Separator();
   ImGui::TextColored(ImVec4(1, 1, 0, 1), "Code:");
   ImGui::TextUnformatted(m_currentCode.c_str());
 
+  ImGui::End();
+
+  // Settings Panel
+  ImGui::SetNextWindowPos(ImVec2(10, ImGui::GetIO().DisplaySize.y - 120),
+                          ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(320, 100), ImGuiCond_FirstUseEver);
+  if (ImGui::Begin("Settings", nullptr)) {
+    ImGui::Checkbox("Auto Camera Tracking", &m_autoCameraTracking);
+  }
   ImGui::End();
 
   // Legend Window
@@ -327,26 +449,49 @@ void VisualizerApp::renderUI() {
   ImGui::End();
 
   // Parameters Panel
-  ImGui::SetNextWindowPos(ImVec2(10, 260),
+  ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 340, 20),
                           ImGuiCond_FirstUseEver); // Below the Legend
   ImGui::SetNextWindowSize(ImVec2(320, 200), ImGuiCond_FirstUseEver);
   if (ImGui::Begin("Parameters", nullptr, ImGuiWindowFlags_NoSavedSettings)) {
-    auto &params = iii::ParameterRegistry::getDoubles();
-    bool changed = false;
-    if (params.empty()) {
-      ImGui::TextDisabled("No parameters registered.");
-    }
-    for (auto &[name, val] : params) {
-      float fVal = (float)val;
-      if (ImGui::DragFloat(name.c_str(), &fVal, 0.01f, -100.0f, 100.0f)) {
-        val = (double)fVal;
-        changed = true;
-      }
-    }
-    if (changed) {
-      if (!m_currentDemoName.empty()) {
-        generateDemo(m_currentDemoName);
-      }
+    if (ImGui::BeginTabBar("Experiments")) {
+       bool changed = false;
+       for (int i = 0; i < m_experiments.size(); ++i) {
+         bool open = true;
+         if (ImGui::BeginTabItem(m_experiments[i].name.c_str(), &open)) {
+             m_activeTabIdx = i;
+             
+             auto &params = m_experiments[i].parameters;
+             if (params.empty()) ImGui::TextDisabled("No parameters registered.");
+             for (auto &[name, val] : params) {
+               float fVal = (float)val;
+               if (ImGui::DragFloat(name.c_str(), &fVal, 0.01f, -100.0f, 100.0f)) {
+                 val = (double)fVal;
+                 changed = true;
+               }
+             }
+             ImGui::EndTabItem();
+         }
+         if (!open) {
+             m_experiments.erase(m_experiments.begin() + i);
+             changed = true;
+             i--;
+             m_activeTabIdx = 0;
+         }
+       }
+       if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip)) {
+         ExperimentTab newExp = m_experiments.empty() ? ExperimentTab{} : m_experiments[m_activeTabIdx];
+         newExp.name = "Exp " + std::to_string(m_experiments.size() + 1);
+         m_experiments.push_back(newExp);
+         changed = true;
+       }
+       ImGui::EndTabBar();
+       
+       if (changed) {
+         if (!m_currentDemoName.empty()) {
+           // To avoid resetting tabs, just regenerate trace
+           regenerateTraces();
+         }
+       }
     }
   }
   ImGui::End();
@@ -397,43 +542,51 @@ void VisualizerApp::renderUI() {
         auto &style = m_classStyles[cls];
 
         if (ImGui::TreeNode(cls.c_str())) {
+          bool changed = false;
+
           // Shape selector
           int currentShape = (int)style.shape;
           if (ImGui::Combo("Shape", &currentShape,
                            "Default\0Sphere\0Cylinder\0Arrow\0\0")) {
             style.shape = (ClassStyle::Shape)currentShape;
+            changed = true;
           }
 
           // Shape-specific parameters
           if (style.shape == ClassStyle::Sphere) {
-            ImGui::DragFloat("Radius", &style.radius, 0.01f, 0.01f, 10.0f);
-            ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
-            ImGui::Checkbox("Wireframe", &style.wireframe);
+            changed |= ImGui::DragFloat("Radius", &style.radius, 0.01f, 0.01f, 10.0f);
+            changed |= ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
+            changed |= ImGui::Checkbox("Wireframe", &style.wireframe);
           }
           if (style.shape == ClassStyle::Cylinder) {
-            ImGui::DragFloat("Cyl Radius", &style.cylinderRadius, 0.005f, 0.005f, 2.0f);
-            ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
-            ImGui::Checkbox("Endcaps", &style.endcaps);
-            ImGui::Checkbox("Wireframe", &style.wireframe);
+            changed |= ImGui::DragFloat("Cyl Radius", &style.cylinderRadius, 0.005f, 0.005f, 2.0f);
+            changed |= ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
+            changed |= ImGui::Checkbox("Endcaps", &style.endcaps);
+            changed |= ImGui::Checkbox("Wireframe", &style.wireframe);
           }
           if (style.shape == ClassStyle::Arrow) {
-            ImGui::DragFloat("Shaft Radius", &style.cylinderRadius, 0.005f, 0.005f, 2.0f);
-            ImGui::DragFloat("Cone Radius", &style.coneRadius, 0.005f, 0.01f, 2.0f);
-            ImGui::DragFloat("Cone Length", &style.coneLength, 0.01f, 0.01f, 5.0f);
-            ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
-            ImGui::Checkbox("Endcap (start)", &style.endcaps);
-            ImGui::Checkbox("Wireframe", &style.wireframe);
+            changed |= ImGui::DragFloat("Shaft Radius", &style.cylinderRadius, 0.005f, 0.005f, 2.0f);
+            changed |= ImGui::DragFloat("Cone Radius", &style.coneRadius, 0.005f, 0.01f, 2.0f);
+            changed |= ImGui::DragFloat("Cone Length", &style.coneLength, 0.01f, 0.01f, 5.0f);
+            changed |= ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
+            changed |= ImGui::Checkbox("Endcap (start)", &style.endcaps);
+            changed |= ImGui::Checkbox("Wireframe", &style.wireframe);
           }
 
           // Color override
-          ImGui::Checkbox("Override Color", &style.overrideColor);
+          changed |= ImGui::Checkbox("Override Color", &style.overrideColor);
           if (style.overrideColor) {
             float col[3] = {style.colorR, style.colorG, style.colorB};
             if (ImGui::ColorEdit3("Color", col)) {
               style.colorR = col[0];
               style.colorG = col[1];
               style.colorB = col[2];
+              changed = true;
             }
+          }
+
+          if (changed) {
+            saveClassStyles(m_currentDemoName);
           }
 
           ImGui::TreePop();

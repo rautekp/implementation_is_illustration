@@ -35,12 +35,18 @@ public:
   // However, we need to know *what* to display.
   // The GLRenderer stores the *current state*.
   // To support scrubbing, we either:
-  // A) Reset GLRenderer and re-play from 0 to currentStep every frame
-  // (Expensive but robust) B) support 'undo' events (Hard) C) Snapshots
-  // (Complex) I will choose A) for this PoC. It's fast enough for < 10k events.
-  std::vector<iii::Event> m_trace;
+  struct ExperimentTab {
+      std::string name;
+      std::map<std::string, double> parameters;
+      std::vector<iii::Event> trace;
+  };
 
-  // Current Message/Code
+  std::vector<ExperimentTab> m_experiments;
+  int m_activeTabIdx = 0;
+
+  // We no longer have a single trace, but `m_currentStep` bounds all active traces.
+
+  // Current Message/Code (extracted from the active tab or across tabs)
   std::string m_currentMessage;
   std::string m_currentCode;
 
@@ -73,13 +79,19 @@ public:
 
   // Loading
   void generateDemo(const std::string &name);
+  void regenerateTraces();
   void parseFile(const std::string &path);
 
   // GUI State
   bool m_showDemoWindow = true;
+  bool m_autoCameraTracking = true;
   char m_inputFilePath[256] = "";
   std::map<std::string, bool> m_layerVisibility; // layer name -> visible
   std::map<std::string, ClassStyle> m_classStyles; // class name -> visual style
+
+  void loadClassStyles(const std::string &demoName);
+  void saveClassStyles(const std::string &demoName);
+  std::string getStyleFilename(const std::string &demoName) const;
 
 private:
   std::vector<iii::Event> parseTraceLine(const std::string &line);

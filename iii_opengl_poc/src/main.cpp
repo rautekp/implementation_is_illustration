@@ -90,12 +90,12 @@ int main(int, char **) {
     app.updateCameraProj(aspect);
 
     // Playback
-    if (app.m_playing && app.m_currentStep < (int)app.m_trace.size()) {
+    if (app.m_playing && app.m_currentStep < app.m_maxStep) {
       app.m_timeAccumulator += dt * app.m_playbackSpeed;
       const float stepInterval = 0.016f;
       while (app.m_timeAccumulator > stepInterval) {
         app.m_timeAccumulator -= stepInterval;
-        if (app.m_currentStep < (int)app.m_trace.size())
+        if (app.m_currentStep < app.m_maxStep)
           app.m_currentStep++;
       }
     }
@@ -103,22 +103,26 @@ int main(int, char **) {
     // Process messages and camera events
     app.m_currentMessage = "";
     app.m_currentCode = "";
-    for (int i = app.m_currentStep - 1; i >= 0; --i) {
-      bool foundMsg = !app.m_currentMessage.empty();
-      if (!foundMsg &&
-          std::holds_alternative<iii::EventMessage>(app.m_trace[i])) {
-        const auto &e = std::get<iii::EventMessage>(app.m_trace[i]);
-        app.m_currentMessage = e.message;
-        app.m_currentCode = e.code;
-        foundMsg = true;
-      }
-      if (std::holds_alternative<iii::EventSetCamera>(app.m_trace[i])) {
-        const auto &cam = std::get<iii::EventSetCamera>(app.m_trace[i]);
-        app.m_traceCamera.dist = cam.dist;
-        app.m_traceCamera.pitch = cam.pitch;
-        app.m_traceCamera.yaw = cam.yaw;
-        app.m_traceCamera.fov = cam.fov;
-        break;
+    if (!app.m_experiments.empty()) {
+      auto &trace = app.m_experiments[app.m_activeTabIdx].trace;
+      int limit = std::min(app.m_currentStep, (int)trace.size());
+      for (int i = limit - 1; i >= 0; --i) {
+        bool foundMsg = !app.m_currentMessage.empty();
+        if (!foundMsg &&
+            std::holds_alternative<iii::EventMessage>(trace[i])) {
+          const auto &e = std::get<iii::EventMessage>(trace[i]);
+          app.m_currentMessage = e.message;
+          app.m_currentCode = e.code;
+          foundMsg = true;
+        }
+        if (std::holds_alternative<iii::EventSetCamera>(trace[i])) {
+          const auto &cam = std::get<iii::EventSetCamera>(trace[i]);
+          app.m_traceCamera.dist = cam.dist;
+          app.m_traceCamera.pitch = cam.pitch;
+          app.m_traceCamera.yaw = cam.yaw;
+          app.m_traceCamera.fov = cam.fov;
+          break;
+        }
       }
     }
 
@@ -133,8 +137,11 @@ int main(int, char **) {
 
     // Feed Renderer with scene events
     renderer.resetObjects();
-    for (int i = 0; i < app.m_currentStep; ++i) {
-      renderer.onEvent(app.m_trace[i]);
+    for (auto &exp : app.m_experiments) {
+      int lim = std::min(app.m_currentStep, (int)exp.trace.size());
+      for (int i = 0; i < lim; ++i) {
+        renderer.onEvent(exp.trace[i]);
+      }
     }
 
     // Compute camera position for specular lighting

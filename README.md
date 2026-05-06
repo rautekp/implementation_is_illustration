@@ -1,65 +1,80 @@
 # Implementation is Illustration (iii)
 
-**Implementation is Illustration** is a C++ library designed to bridge the gap between high-performance mathematical code and visual explanation. It allows you to write standard mathematical C++ code that can double as its own visualization, with zero runtime overhead when visualization is disabled.
+**Implementation is Illustration** (`iii`) is a C++ library designed to bridge the gap between high-performance mathematical code and intuitive visual explanation. It allows you to write standard mathematical C++ code that can double as its own interactive 3D visualization, with **zero runtime overhead** when visualization is disabled.
 
-## Purpose
+Never write "real" code and "visualization" code separately again.
 
-Complex mathematical algorithms are often hard to debug and even harder to explain. Traditional visualization requires writing separate code, often leading to divergence between the "real" implementation and the "visual" one.
+## 🌟 The Core Philosophy
 
-**iii** solves this by augmenting standard types (like 3D vectors) with optional hook capabilities.
-- **Visual Mode**: Operations record their history, context, and relationships (A + B -> C).
+Complex mathematical algorithms are often hard to debug and even harder to explain. Traditional visualization requires writing bespoke rendering code that mirrors the algorithmic logic, inevitably leading to divergence between the "real" implementation and the "visual" one.
+
+**iii** solves this by augmenting standard types (like 3D vectors and matrices) with optional event-hook capabilities.
+
+- **Visual Mode**: Operations record their history, geometric context, and relationships (e.g., $A + B \rightarrow C$).
 - **Fast Mode**: The hooks compile away completely, leaving you with raw Eigen-powered performance.
 
-## Features
+## ✨ Features
 
--   **Zero-Overhead "Fast" Mode**: Compiles down to optimized inline code (verified to match raw Eigen performance).
--   **Drop-in Compatibility**: Types inherit from and interoperate with `Eigen::Vector` types.
--   **Function Wrappers**: `iii::Function` automatically logs function entry/exit and arguments for visual debugging.
--   **Event System**: Flexible `Recorder` and `IEventListener` architecture to stream events to files, consoles, or real-time renderers.
+- **Zero-Overhead "Fast" Mode**: Compiles down to optimized inline math code (verified via benchmarks to match raw Eigen performance).
+- **Drop-in Compatibility**: Types inherit from and interoperate seamlessly with `Eigen::Vector` types.
+- **Real-Time Interactive Visualizer**: An included ImGui + OpenGL Proof-of-Concept visualizer allows you to scrub backward and forward through algorithmic timelines exactly like a video player.
+- **Concurrent Multi-Experiment Execution**: 
+  - Compare algorithms side-by-side! Create multiple "Experiment Tabs" in the visualizer to run algorithms with different parameters simultaneously in the same 3D space.
+  - Perfect for comparing the divergence of **Adaptive step DP/RK45** versus standard **RK4** integration!
+- **Live Parameter Tuning**: Update parameters (like step sizes or error tolerances) from the visualizer UI, and the C++ trace is instantly regenerated and visualized.
+- **Function Wrappers**: Use `iii::Function` to automatically log function scope entry/exit and arguments for visual debugging.
 
-## Project Structure
+## 📂 Project Structure
 
--   `include/iii/`: Core library headers.
--   `examples/`: Usage examples and benchmarks.
--   `iii_opengl_poc/`: A Proof-of-Concept OpenGL renderer that visualizes the library's output.
+- `include/iii/`: Core library headers. Add this to your include path to use the visual types.
+- `src/`: Core library implementation files (e.g., the global `Recorder`).
+- `examples/`: Usage examples, algorithm demonstrations (like RK4/RK5 and Inverse Kinematics), and benchmarks.
+- `iii_opengl_poc/`: A self-contained OpenGL + ImGui application that loads and renders the geometric events emitted by your `iii` math.
 
-## Build Instructions
+## 🚀 Build Instructions
 
-This project uses CMake and FetchContent. It is self-contained and will download dependencies (Eigen, GLFW, etc.) automatically.
+This project uses CMake and `FetchContent`. It is self-contained and will download necessary UI dependencies (Eigen, GLFW, ImGui, GLAD) automatically.
 
 ### Prerequisites
--   CMake 3.20+
--   C++20 compliant compiler (MSVC, Clang 10+, GCC 10+)
--   System OpenGL drivers
+- CMake 3.20+
+- C++20 compliant compiler (MSVC, Clang 10+, GCC 10+)
+- OpenGL 4.1+ system drivers
 
-### Building
+### Compiling
 
 ```bash
-# 1. Configure
+# 1. Configure the project
 cmake -S . -B build
 
-# 2. Build everything
+# 2. Build everything (Core, Examples, and the Visualizer)
 cmake --build build --config Release
 ```
 
-### Running Examples
+## 🎮 Running the Visualizer
 
-**Basic Usage:**
+The visualizer is the best way to experience the library. It includes demos for Solar System simulations, Inverse Kinematics, Ray-Sphere Intersections, and Adaptive RK45 numerical integration.
+
 ```bash
-./build/Release/poc_example.exe
+./build/Release/iii_visualizer.exe
 ```
 
-**Benchmarks:**
+### Visualizer Controls
+- **Timeline:** Use the playback buttons or slider at the bottom to scrub through mathematical events over time.
+- **Parameters (Right Panel):** Tweak real-time parameters (e.g., starting conditions, integration step sizes, tolerances). Click the `+` tab to spawn a new concurrent experiment for comparison!
+- **Layers (Left Panel):** Toggle the visibility of individual algorithm stages or vectors (e.g., hide the $K_1$ through $K_7$ stages of the Dormand-Prince calculation).
+- **Camera:** Click and drag in the viewport to orbit around the 3D representation of your algorithm.
+
+## 📊 Running Benchmarks
+
+Want proof of the zero-overhead claim? Run the included parameter and mixed benchmark executables:
+
 ```bash
 ./build/Release/iii_benchmark.exe
+./build/Release/benchmark_parameter.exe
 ```
 
-### Running the Visualizer with PoC
-If you built the project with default options, the OpenGL PoC is included.
+*Note: For the truest zero-overhead performance in production, compile with `III_ENABLE_VISUALS` set to `OFF`.*
 
-```bash
-./build/Release/iii_opengl_poc.exe
-```
+## 📜 License
 
-## License
-[License Info Here]
+This project is licensed under the MIT License. Feel free to use, modify, and distribute it in both open-source and commercial applications.
