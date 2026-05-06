@@ -1,50 +1,69 @@
 #include "GLRenderer.hpp"
 #include "VisualizerApp.hpp"
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl2.h>
+#include <imgui_impl_opengl3.h>
+#include <cmath>
 #include <iostream>
 #include <vector>
 
 int main(int, char **) {
   if (!glfwInit())
     return 1;
-  // Window init
+
+  // Request OpenGL 4.1 Core Profile
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+
   GLFWwindow *window =
       glfwCreateWindow(1280, 720, "III Visualizer", NULL, NULL);
-  if (!window)
+  if (!window) {
+    std::cerr << "Failed to create GLFW window (GL 4.1 required)\n";
+    glfwTerminate();
     return 1;
+  }
   glfwMakeContextCurrent(window);
-  glfwSwapInterval(1); // Enable vsync
+  glfwSwapInterval(1);
+
+  // Initialize GLAD
+  if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    std::cerr << "Failed to initialize GLAD\n";
+    return 1;
+  }
+  std::cout << "OpenGL " << glGetString(GL_VERSION) << "\n";
 
   // Setup ImGui
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
   (void)io;
-  io.ConfigFlags |=
-      ImGuiConfigFlags_NavEnableKeyboard;           // Enable Keyboard Controls
-  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
-  ImGui_ImplOpenGL2_Init();
+  ImGui_ImplOpenGL3_Init("#version 410");
 
   // App Instance
   VisualizerApp app;
   GLRenderer renderer;
+  renderer.initGL();
   app.m_renderer = &renderer;
 
   // Generate Initial Demo
-  app.generateDemo("Matrix Demo"); // Starts with Matrix Demo by default
+  app.generateDemo("Matrix Demo");
   std::cout << "Trace initialized.\n";
 
-  // Init Playback
   app.m_playing = false;
-
-  // Time tracking
   double lastTime = glfwGetTime();
+
+  // Enable depth test and point size
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_PROGRAM_POINT_SIZE);
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
@@ -54,15 +73,12 @@ int main(int, char **) {
     lastTime = currentTime;
 
     // Start ImGui Frame
-    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Update App Logic (Camera interpolation etc) - Moved here to have fresh
-    // Input
     app.update(dt);
 
-    // Viewport info for Projection
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
     app.m_viewport[0] = 0;
@@ -70,29 +86,25 @@ int main(int, char **) {
     app.m_viewport[2] = display_w;
     app.m_viewport[3] = display_h;
 
-    // Camera Update
     float aspect = (float)display_w / (float)display_h;
     app.updateCameraProj(aspect);
 
-    // Logic (Playback step)
-    if (app.m_playing && app.m_currentStep < app.m_trace.size()) {
-      // Speed control
+    // Playback
+    if (app.m_playing && app.m_currentStep < (int)app.m_trace.size()) {
       app.m_timeAccumulator += dt * app.m_playbackSpeed;
-      const float stepInterval = 0.016f; // ~60 fps
+      const float stepInterval = 0.016f;
       while (app.m_timeAccumulator > stepInterval) {
         app.m_timeAccumulator -= stepInterval;
-        if (app.m_currentStep < app.m_trace.size())
+        if (app.m_currentStep < (int)app.m_trace.size())
           app.m_currentStep++;
       }
     }
 
-    // Process range events for Camera and Messages
+    // Process messages and camera events
     app.m_currentMessage = "";
     app.m_currentCode = "";
-    // We only need the *latest* camera event in range [0, currentStep]
     for (int i = app.m_currentStep - 1; i >= 0; --i) {
       bool foundMsg = !app.m_currentMessage.empty();
-      // Check message
       if (!foundMsg &&
           std::holds_alternative<iii::EventMessage>(app.m_trace[i])) {
         const auto &e = std::get<iii::EventMessage>(app.m_trace[i]);
@@ -100,10 +112,8 @@ int main(int, char **) {
         app.m_currentCode = e.code;
         foundMsg = true;
       }
-      // Check camera
       if (std::holds_alternative<iii::EventSetCamera>(app.m_trace[i])) {
         const auto &cam = std::get<iii::EventSetCamera>(app.m_trace[i]);
-        // Update target trace camera
         app.m_traceCamera.dist = cam.dist;
         app.m_traceCamera.pitch = cam.pitch;
         app.m_traceCamera.yaw = cam.yaw;
@@ -112,37 +122,38 @@ int main(int, char **) {
       }
     }
 
-    // Render UI (Controls + Labels)
+    // Render UI
     app.renderUI();
-
-    // Rendering Scene
     ImGui::Render();
 
+    // GL rendering
     glViewport(0, 0, display_w, display_h);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear Depth too
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Apply Camera
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(app.m_projMat);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(app.m_viewMat);
-
-    // Feed Renderer
-    renderer = GLRenderer(); // Reset state
+    // Feed Renderer with scene events
+    renderer.resetObjects();
     for (int i = 0; i < app.m_currentStep; ++i) {
       renderer.onEvent(app.m_trace[i]);
     }
 
-    // Draw Scene
-    renderer.render(app.m_layerVisibility, app.m_classStyles);
+    // Compute camera position for specular lighting
+    float camPos[3];
+    camPos[0] = app.m_camera.dist * cosf(app.m_camera.pitch) * sinf(app.m_camera.yaw);
+    camPos[1] = app.m_camera.dist * sinf(app.m_camera.pitch);
+    camPos[2] = app.m_camera.dist * cosf(app.m_camera.pitch) * cosf(app.m_camera.yaw);
 
-    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+    // Draw Scene (pass matrices as uniforms)
+    renderer.render(app.m_viewMat, app.m_projMat, camPos,
+                    app.m_layerVisibility, app.m_classStyles);
+
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     glfwSwapBuffers(window);
   }
 
-  ImGui_ImplOpenGL2_Shutdown();
+  renderer.shutdownGL();
+  ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
 

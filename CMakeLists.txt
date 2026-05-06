@@ -66,7 +66,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iii_opengl_poc")
         "${IMGUI_DIR}/imgui_widgets.cpp"
         "${IMGUI_DIR}/imgui_demo.cpp"
         "${IMGUI_DIR}/backends/imgui_impl_glfw.cpp"
-        "${IMGUI_DIR}/backends/imgui_impl_opengl2.cpp"
+        "${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp"
     )
 
     add_executable(iii_visualizer 
@@ -74,12 +74,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iii_opengl_poc")
         iii_opengl_poc/src/GLRenderer.cpp
         iii_opengl_poc/src/VisualizerApp.cpp
         ${IMGUI_SOURCES}
+        libs/glad/src/glad.c
     )
 
     target_include_directories(iii_visualizer PRIVATE 
         iii_opengl_poc/src 
         ${IMGUI_DIR} 
         ${IMGUI_DIR}/backends
+        libs/glad/include
     )
     # Link against 'glfw' target provided by iii_opengl_poc subdirectory
     target_link_libraries(iii_visualizer PRIVATE iii_core iii_demos glfw OpenGL::GL)

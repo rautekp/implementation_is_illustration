@@ -184,12 +184,14 @@ void VisualizerApp::generateDemo(const std::string &name) {
     m_trace = DemoCases::generate_raysphere_demo();
   } else if (name == "Curve Frames") {
     m_trace = DemoCases::generate_curve_frame_demo();
+  } else if (name == "RK4 Integration") {
+    m_trace = DemoCases::generate_rk4_demo();
   }
   // Reset state
   m_currentStep = 0;
   m_timeAccumulator = 0.0f;
   m_playing = false;
-  m_renderer->reset(); // Clear old objects
+  m_renderer->resetObjects(); // Clear old objects
 
   // Set initial camera from trace if available?
   // We scan for first camera event
@@ -246,6 +248,9 @@ void VisualizerApp::renderUI() {
       }
       if (ImGui::MenuItem("Curve Frames")) {
         generateDemo("Curve Frames");
+      }
+      if (ImGui::MenuItem("RK4 Integration")) {
+        generateDemo("RK4 Integration");
       }
       ImGui::EndMenu();
     }

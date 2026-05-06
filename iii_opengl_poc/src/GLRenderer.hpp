@@ -1,21 +1,21 @@
 #pragma once
 
 #include <iii/IEventListener.hpp>
+#include <glad/glad.h>
 #include <map>
 #include <string>
 #include <vector>
 
 // ============================================================
 // ClassStyle — Visualizer-side mapping from class name to visual representation
-// The iii library knows nothing about these; they are purely renderer concepts.
 // ============================================================
 
 struct ClassStyle {
   enum Shape {
-    Default = 0, // Use the object's semantic (Point, Vector, Line, Frame)
-    Sphere,      // For points: solid/wireframe sphere
-    Cylinder,    // For lines/vectors: tube between endpoints
-    Arrow,       // For lines/vectors: cylinder body + cone arrowhead
+    Default = 0,
+    Sphere,
+    Cylinder,
+    Arrow,
   };
 
   Shape shape = Default;
@@ -35,12 +35,11 @@ struct ClassStyle {
   float coneRadius = 0.12f;
   float coneLength = 0.3f;
 
-  // UI helpers
   static constexpr int shapeCount = 4;
 };
 
 // ============================================================
-// RenderObject
+// RenderObject — Internal state of a visual object
 // ============================================================
 
 struct RenderObject {
@@ -59,17 +58,33 @@ struct RenderObject {
 };
 
 // ============================================================
-// GLRenderer
+// GPUMesh — VAO/VBO/EBO for a unit mesh
+// ============================================================
+
+struct GPUMesh {
+  GLuint vao = 0, vbo = 0, ebo = 0;
+  int indexCount = 0;
+  void cleanup();
+};
+
+// ============================================================
+// GLRenderer — Modern OpenGL 4.1 renderer
 // ============================================================
 
 class GLRenderer : public iii::IEventListener {
 public:
+  GLRenderer();
+  ~GLRenderer();
+
+  void initGL(); // Call once after GL context is ready
+  void shutdownGL();
+
   void onEvent(const iii::Event &e) override;
-  void render();
-  void render(const std::map<std::string, bool> &layerVisibility);
-  void render(const std::map<std::string, bool> &layerVisibility,
+  void render(const float *viewMat, const float *projMat,
+              const float *cameraPos,
+              const std::map<std::string, bool> &layerVisibility,
               const std::map<std::string, ClassStyle> &classStyles);
-  void reset();
+  void resetObjects(); // Clear scene objects (NOT GPU resources)
   const std::vector<RenderObject> &getObjects() const { return m_objects; }
 
   std::vector<std::string> getLayers() const;
@@ -78,27 +93,46 @@ public:
 private:
   std::vector<RenderObject> m_objects;
 
+  // --- Shaders ---
+  GLuint m_litProgram = 0;   // Blinn-Phong for 3D shapes
+  GLuint m_flatProgram = 0;  // Flat color for points/lines/frames
+
+  // Lit shader uniform locations
+  GLint m_litLocMVP = -1, m_litLocModel = -1, m_litLocNormalMat = -1;
+  GLint m_litLocColor = -1, m_litLocLightDir = -1, m_litLocViewPos = -1;
+
+  // Flat shader uniform locations
+  GLint m_flatLocMVP = -1, m_flatLocColor = -1;
+
+  // --- Dynamic buffers for points/lines ---
+  GLuint m_dynVAO = 0, m_dynVBO = 0;
+
+  // --- Mesh cache (keyed by tessellation) ---
+  std::map<int, GPUMesh> m_sphereCache;
+  std::map<int, GPUMesh> m_cylinderCache;
+  std::map<int, GPUMesh> m_coneCache;
+  std::map<int, GPUMesh> m_discCache;
+
+  GPUMesh &getOrCreateSphere(int tess);
+  GPUMesh &getOrCreateCylinder(int tess);
+  GPUMesh &getOrCreateCone(int tess);
+  GPUMesh &getOrCreateDisc(int tess);
+
+  // --- Helpers ---
   bool isLayerVisible(const RenderObject &obj,
                       const std::map<std::string, bool> &layerVis) const;
 
-  // Shape drawing primitives
-  void drawSphere(float cx, float cy, float cz, float radius,
-                  int seg, float r, float g, float b, bool wireframe);
-  void drawCylinder(float x1, float y1, float z1,
-                    float x2, float y2, float z2,
-                    float radius, int seg,
-                    float r, float g, float b, bool wireframe);
-  void drawCone(float baseX, float baseY, float baseZ,
-                float tipX, float tipY, float tipZ,
-                float radius, int seg,
-                float r, float g, float b, bool wireframe);
-  void drawDisc(float cx, float cy, float cz,
-                float nx, float ny, float nz,
-                float radius, int seg,
-                float r, float g, float b);
+  static GLuint compileShader(GLenum type, const char *src);
+  static GLuint linkProgram(GLuint vert, GLuint frag);
 
-  // Helper: build a perpendicular frame around an axis direction
-  void buildFrame(float dx, float dy, float dz,
-                  float &ux, float &uy, float &uz,
-                  float &vx, float &vy, float &vz);
+  // Build a 4x4 model matrix that transforms a unit cylinder/cone
+  // (along +Y, radius 1) to go from p1 to p2 with given radius
+  static void buildSegmentMatrix(float x1, float y1, float z1,
+                                 float x2, float y2, float z2,
+                                 float radius, float mat[16]);
+
+  // 4x4 matrix multiply: out = a * b (column-major)
+  static void mat4Mul(const float *a, const float *b, float *out);
+  // 3x3 normal matrix from model matrix (inverse transpose of upper-left 3x3)
+  static void normalMat3(const float *model4x4, float *out3x3);
 };
