@@ -51,7 +51,7 @@ void VisualizerApp::update(float dt) {
   if (!io.WantCaptureMouse) {
     // Orbit (Right Mouse)
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-      std::cout << "DEBUG: Right Mouse Down" << std::endl;
+
       m_isManualInteraction = true;
       m_transitionAlpha = 0.0f; // Switch to manual
 
@@ -180,6 +180,10 @@ void VisualizerApp::generateDemo(const std::string &name) {
     m_trace = DemoCases::generate_solar_system();
   } else if (name == "Inverse Kinematics") {
     m_trace = DemoCases::generate_ik_demo();
+  } else if (name == "Ray-Sphere Intersection") {
+    m_trace = DemoCases::generate_raysphere_demo();
+  } else if (name == "Curve Frames") {
+    m_trace = DemoCases::generate_curve_frame_demo();
   }
   // Reset state
   m_currentStep = 0;
@@ -237,6 +241,12 @@ void VisualizerApp::renderUI() {
       if (ImGui::MenuItem("Inverse Kinematics")) {
         generateDemo("Inverse Kinematics");
       }
+      if (ImGui::MenuItem("Ray-Sphere Intersection")) {
+        generateDemo("Ray-Sphere Intersection");
+      }
+      if (ImGui::MenuItem("Curve Frames")) {
+        generateDemo("Curve Frames");
+      }
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
@@ -244,12 +254,39 @@ void VisualizerApp::renderUI() {
 
   ImGui::Begin("Timeline");
 
-  if (ImGui::Button(m_playing ? "Pause" : "Play")) {
+  // Playback controls row
+  if (ImGui::Button("|<##reset")) {
+    m_currentStep = 0;
+    m_playing = false;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("<##prev")) {
+    if (m_currentStep > 0) m_currentStep--;
+    m_playing = false;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button(m_playing ? "||##playpause" : ">##playpause")) {
     m_playing = !m_playing;
   }
   ImGui::SameLine();
+  if (ImGui::Button(">##next")) {
+    if (m_currentStep < (int)m_trace.size()) m_currentStep++;
+    m_playing = false;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button(">|##end")) {
+    m_currentStep = (int)m_trace.size();
+    m_playing = false;
+  }
+
+  // Timeline slider
   ImGui::SliderInt("Step", &m_currentStep, 0, (int)m_trace.size(), "Step %d");
 
+  // Playback speed
+  ImGui::SliderFloat("Speed", &m_playbackSpeed, 0.1f, 10.0f, "%.1fx");
+
+  // Step info
+  ImGui::Text("Events: %d / %d", m_currentStep, (int)m_trace.size());
   ImGui::Text("Message: %s", m_currentMessage.c_str());
   ImGui::Separator();
   ImGui::TextColored(ImVec4(1, 1, 0, 1), "Code:");
@@ -265,6 +302,11 @@ void VisualizerApp::renderUI() {
         continue;
       if (obj.semantic == "Vector")
         continue; // Skip vectors in legend for now
+      // Respect layer visibility in legend
+      if (!obj.layer.empty()) {
+        auto it = m_layerVisibility.find(obj.layer);
+        if (it != m_layerVisibility.end() && !it->second) continue;
+      }
 
       std::string name = obj.label.empty() ? std::to_string(obj.id) : obj.label;
       ImGui::BeginGroup();
@@ -281,8 +323,8 @@ void VisualizerApp::renderUI() {
 
   // Parameters Panel
   ImGui::SetNextWindowPos(ImVec2(10, 260),
-                          ImGuiCond_FirstUseEver); // Below Legend
-  ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+                          ImGuiCond_FirstUseEver); // Below the Legend
+  ImGui::SetNextWindowSize(ImVec2(320, 200), ImGuiCond_FirstUseEver);
   if (ImGui::Begin("Parameters", nullptr, ImGuiWindowFlags_NoSavedSettings)) {
     auto &params = iii::ParameterRegistry::getDoubles();
     bool changed = false;
@@ -291,7 +333,7 @@ void VisualizerApp::renderUI() {
     }
     for (auto &[name, val] : params) {
       float fVal = (float)val;
-      if (ImGui::DragFloat(name.c_str(), &fVal, 0.001f, 0.0001f, 10.0f)) {
+      if (ImGui::DragFloat(name.c_str(), &fVal, 0.01f, -100.0f, 100.0f)) {
         val = (double)fVal;
         changed = true;
       }
@@ -299,6 +341,98 @@ void VisualizerApp::renderUI() {
     if (changed) {
       if (!m_currentDemoName.empty()) {
         generateDemo(m_currentDemoName);
+      }
+    }
+  }
+  ImGui::End();
+
+  // Layers Panel
+  ImGui::Begin("Layers");
+  if (m_renderer) {
+    auto layers = m_renderer->getLayers();
+    if (layers.empty()) {
+      ImGui::TextDisabled("No layers defined");
+    } else {
+      // "All" toggle
+      if (ImGui::Button("Show All")) {
+        for (auto &[name, vis] : m_layerVisibility) vis = true;
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Hide All")) {
+        for (auto &[name, vis] : m_layerVisibility) vis = false;
+      }
+      ImGui::Separator();
+
+      for (const auto &layer : layers) {
+        // Auto-register new layers as visible
+        if (m_layerVisibility.find(layer) == m_layerVisibility.end()) {
+          m_layerVisibility[layer] = true;
+        }
+        bool visible = m_layerVisibility[layer];
+        if (ImGui::Checkbox(layer.c_str(), &visible)) {
+          m_layerVisibility[layer] = visible;
+        }
+      }
+    }
+  }
+  ImGui::End();
+
+  // Class Styles Panel
+  ImGui::Begin("Class Styles");
+  if (m_renderer) {
+    auto classes = m_renderer->getClasses();
+    if (classes.empty()) {
+      ImGui::TextDisabled("No classes defined");
+    } else {
+      for (const auto &cls : classes) {
+        // Auto-register new classes with default style
+        if (m_classStyles.find(cls) == m_classStyles.end()) {
+          m_classStyles[cls] = ClassStyle{};
+        }
+        auto &style = m_classStyles[cls];
+
+        if (ImGui::TreeNode(cls.c_str())) {
+          // Shape selector
+          int currentShape = (int)style.shape;
+          if (ImGui::Combo("Shape", &currentShape,
+                           "Default\0Sphere\0Cylinder\0Arrow\0\0")) {
+            style.shape = (ClassStyle::Shape)currentShape;
+          }
+
+          // Shape-specific parameters
+          if (style.shape == ClassStyle::Sphere) {
+            ImGui::DragFloat("Radius", &style.radius, 0.01f, 0.01f, 10.0f);
+            ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
+            ImGui::Checkbox("Wireframe", &style.wireframe);
+          }
+          if (style.shape == ClassStyle::Cylinder) {
+            ImGui::DragFloat("Cyl Radius", &style.cylinderRadius, 0.005f, 0.005f, 2.0f);
+            ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
+            ImGui::Checkbox("Endcaps", &style.endcaps);
+            ImGui::Checkbox("Wireframe", &style.wireframe);
+          }
+          if (style.shape == ClassStyle::Arrow) {
+            ImGui::DragFloat("Shaft Radius", &style.cylinderRadius, 0.005f, 0.005f, 2.0f);
+            ImGui::DragFloat("Cone Radius", &style.coneRadius, 0.005f, 0.01f, 2.0f);
+            ImGui::DragFloat("Cone Length", &style.coneLength, 0.01f, 0.01f, 5.0f);
+            ImGui::SliderInt("Tessellation", &style.tessellation, 4, 32);
+            ImGui::Checkbox("Endcap (start)", &style.endcaps);
+            ImGui::Checkbox("Wireframe", &style.wireframe);
+          }
+
+          // Color override
+          ImGui::Checkbox("Override Color", &style.overrideColor);
+          if (style.overrideColor) {
+            float col[3] = {style.colorR, style.colorG, style.colorB};
+            if (ImGui::ColorEdit3("Color", col)) {
+              style.colorR = col[0];
+              style.colorG = col[1];
+              style.colorB = col[2];
+            }
+          }
+
+          ImGui::TreePop();
+        }
       }
     }
   }
@@ -321,6 +455,11 @@ void VisualizerApp::renderUI() {
         continue;
       if (obj.label.empty())
         continue;
+      // Respect layer visibility in overlay
+      if (!obj.layer.empty()) {
+        auto it = m_layerVisibility.find(obj.layer);
+        if (it != m_layerVisibility.end() && !it->second) continue;
+      }
 
       float sx, sy;
       float ox = obj.x;

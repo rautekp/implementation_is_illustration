@@ -1,8 +1,6 @@
 #pragma once
 
 #include <Eigen/Dense>
-#include <autodiff/forward/real.hpp>
-#include <autodiff/forward/real/eigen.hpp>
 #include <iostream>
 
 // Always include Recorder, but it will only be used if Visualize=true
@@ -16,6 +14,8 @@ struct VisualData {
   std::string label;
   Color color = {0.5f, 0.5f, 0.5f};
   std::string semantic = "Point";
+  std::string className;
+  std::string layer;
 };
 struct NoVisualData {};
 
@@ -56,6 +56,8 @@ public:
         m_data.semantic = other.m_data.semantic;
         m_data.label = other.m_data.label;
         m_data.color = other.m_data.color;
+        m_data.className = other.m_data.className;
+        m_data.layer = other.m_data.layer;
       }
     }
     register_visual();
@@ -73,6 +75,8 @@ public:
       m_data.semantic = other.m_data.semantic;
       m_data.label = other.m_data.label;
       m_data.color = other.m_data.color;
+      m_data.className = other.m_data.className;
+      m_data.layer = other.m_data.layer;
     }
     register_visual();
   }
@@ -217,6 +221,22 @@ public:
     if constexpr (Visualize) {
       if (m_data.id != 0)
         Recorder::get().record(EventSetVisible{m_data.id, v});
+    }
+  }
+
+  void set_class(std::string c) {
+    if constexpr (Visualize) {
+      m_data.className = c;
+      if (m_data.id != 0)
+        Recorder::get().record(EventSetClass{m_data.id, m_data.className});
+    }
+  }
+
+  void set_layer(std::string l) {
+    if constexpr (Visualize) {
+      m_data.layer = l;
+      if (m_data.id != 0)
+        Recorder::get().record(EventSetLayer{m_data.id, m_data.layer});
     }
   }
 

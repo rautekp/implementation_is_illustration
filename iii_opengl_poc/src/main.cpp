@@ -135,7 +135,7 @@ int main(int, char **) {
     }
 
     // Draw Scene
-    renderer.render();
+    renderer.render(app.m_layerVisibility, app.m_classStyles);
 
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 

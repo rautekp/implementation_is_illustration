@@ -14,26 +14,15 @@ option(III_ENABLE_VISUALS "Enable visualization capabilities" ON)
 # Ideally autodiff should be proper dependency.
 
 
-# Fetch Eigen if not present
 # Manual dependencies (FetchContent bypass)
 set(eigen3_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/eigen")
-set(autodiff_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/autodiff")
-set(eigen3_POPULATED TRUE)
-set(autodiff_POPULATED TRUE)
-
-# Autodiff is header only, just expose the include dir
-# Autodiff is header only, just expose the include dir
-add_library(autodiff::autodiff INTERFACE IMPORTED)
-target_include_directories(autodiff::autodiff INTERFACE ${autodiff_SOURCE_DIR})
-target_include_directories(autodiff::autodiff INTERFACE ${eigen3_SOURCE_DIR})
 
 # Library
 add_library(iii INTERFACE)
 target_include_directories(iii INTERFACE 
     include
+    ${eigen3_SOURCE_DIR}
 )
-
-target_link_libraries(iii INTERFACE autodiff::autodiff)
 
 if(III_ENABLE_VISUALS)
     target_compile_definitions(iii INTERFACE III_ENABLE_VISUALS)

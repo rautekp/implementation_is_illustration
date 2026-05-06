@@ -113,6 +113,12 @@ void Recorder::dump(const std::string &filename) {
           } else if constexpr (std::is_same_v<T, EventSetLabel>) {
             out << "\"set_label\", \"id\": " << arg.id << ", \"label\": \""
                 << arg.label << "\"";
+          } else if constexpr (std::is_same_v<T, EventSetClass>) {
+            out << "\"set_class\", \"id\": " << arg.id << ", \"class\": \""
+                << arg.className << "\"";
+          } else if constexpr (std::is_same_v<T, EventSetLayer>) {
+            out << "\"set_layer\", \"id\": " << arg.id << ", \"layer\": \""
+                << arg.layer << "\"";
           }
           out << " }";
         },

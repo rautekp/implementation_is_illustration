@@ -2,6 +2,7 @@
 
 #include "GLRenderer.hpp"
 #include <iii/Recorder.hpp>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -77,6 +78,8 @@ public:
   // GUI State
   bool m_showDemoWindow = true;
   char m_inputFilePath[256] = "";
+  std::map<std::string, bool> m_layerVisibility; // layer name -> visible
+  std::map<std::string, ClassStyle> m_classStyles; // class name -> visual style
 
 private:
   std::vector<iii::Event> parseTraceLine(const std::string &line);

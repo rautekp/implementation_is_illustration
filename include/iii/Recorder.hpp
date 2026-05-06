@@ -112,12 +112,25 @@ struct EventSetCamera {
   float fov = 45.0f;
 };
 
+// Class — declarative styling tag (like CSS class)
+struct EventSetClass {
+  size_t id;
+  std::string className;
+};
+
+// Layer — grouping for visibility/render order
+struct EventSetLayer {
+  size_t id;
+  std::string layer;
+};
+
 using Event =
     std::variant<EventCreate, EventCreateRelation, EventMove, EventBinaryOp,
                  EventScalarOp, EventFunctionStart, EventFunctionEnd,
                  EventDestroy, EventSetSemantic, EventSetOrigin,
                  EventSetVisible, EventSetColor, EventDotOp, EventSetMatrix,
-                 EventTransform, EventMessage, EventSetCamera, EventSetLabel>;
+                 EventTransform, EventMessage, EventSetCamera, EventSetLabel,
+                 EventSetClass, EventSetLayer>;
 
 struct IEventListener; // Forward declaration
 
